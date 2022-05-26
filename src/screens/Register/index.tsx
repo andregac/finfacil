@@ -8,11 +8,12 @@ import {
 
 import * as Yup from 'yup';
 import {yupResolver} from '@hookform/resolvers/yup'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useForm} from 'react-hook-form';
+import uuid from 'react-native-uuid';
+import { useNavigation,  NavigationProp,ParamListBase, } from '@react-navigation/native';
 
-
-import { Input } from '../../components/Forms/Input'
 import { InputForm } from '../../components/Forms/InputForm'
 import { Button } from '../../components/Forms/Button'
 import { TransactionTypeButton } from '../../components/Forms/TransactionTypeButton'
@@ -47,6 +48,7 @@ export type FormData = {
       .positive('O valor não pode ser negativo')
   })
 export function Register (){
+
     const [transactionType, setTransactionType] = useState('')
     const [categoryModalOpen, setCategoryModalOpen] = useState(false)
     const [category, setCategory] = useState({
@@ -54,16 +56,19 @@ export function Register (){
         name:'Categoria',
     })
 
+    const { navigate }: NavigationProp<ParamListBase> = useNavigation();
+
     const { 
         control,
         handleSubmit,
+        reset,
         formState: {errors}
 
     } = useForm({
         resolver:yupResolver(schema)
     })
 
-    function handleTransactionsTypeSelect(type: 'up'|'down'){
+    function handleTransactionsTypeSelect(type: 'positive'|'negative'){
         setTransactionType(type)
     }
 
@@ -75,7 +80,7 @@ export function Register (){
         setCategoryModalOpen(false)
     }
 
-    function handleRegister(form: FormData) {
+    async function handleRegister(form: FormData) {
         if(!transactionType)
         return Alert.alert('Selecione o tipo de transação')
 
@@ -83,22 +88,43 @@ export function Register (){
         return Alert.alert('Selecione a categoria da transação')
 
 
-
-
-
-
-        const data ={
+        const newTransaction ={
+            id: String(uuid.v4()),
             name: form.name,
             amount: form.amount,
-            transactionType,
-            category: category.key
+            type:transactionType,
+            category: category.key,
+            date: new Date()
         }
 
-        console.log(data)
+       try {
+        const dataKey = '@finances:transactions';
+         const data = await AsyncStorage.getItem(dataKey);
+         const currentData = data ? JSON.parse(data) : []; 
+         const dataFormatted = [
+             ...currentData,
+             newTransaction
+         ];
+
+        await AsyncStorage.setItem(dataKey, JSON.stringify(dataFormatted));
+
+        reset();
+        setTransactionType('');
+        setCategory({
+            key: 'category',
+            name:'Categoria',
+        });
+
+        navigate('Listagem');
+
+       } catch (error) {
+           console.log(error);
+           Alert.alert("Não foi possivel salvar")
+       }
 
     }
 
-    
+
 
     return(
 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -136,14 +162,14 @@ export function Register (){
                             <TransactionTypeButton
                                 type="up"
                                 title ="Entrada"
-                                onPress={()=>handleTransactionsTypeSelect('up')}
-                                isActive = {transactionType === 'up'}
+                                onPress={()=>handleTransactionsTypeSelect('positive')}
+                                isActive = {transactionType === 'positive'}
                             />
                                 <TransactionTypeButton
                                     type="down"
                                     title ="Saída"
-                                    onPress={()=>handleTransactionsTypeSelect('down')}
-                                    isActive = {transactionType === 'down'}
+                                    onPress={()=>handleTransactionsTypeSelect('negative')}
+                                    isActive = {transactionType === 'negative'}
                                 />
                         </TransactionsType>  
                         <CategorySelectButton 
